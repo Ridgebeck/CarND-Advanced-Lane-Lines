@@ -1,55 +1,65 @@
-## Writeup Template
 
-### You can use this file as a template for your writeup if you want to submit it as a markdown file, but feel free to use some other method and submit a pdf if you prefer.
 
 ---
 
-**Advanced Lane Finding Project**
+# Udacity CarND Project 4 - Advanced Lane Finding Project #
+
+---
 
 The goals / steps of this project are the following:
 
+#### 1. Camera Calibration
 * Compute the camera calibration matrix and distortion coefficients given a set of chessboard images.
 * Apply a distortion correction to raw images.
-* Use color transforms, gradients, etc., to create a thresholded binary image.
+
+#### 2. Image Processing
+* Use gradients and color transforms to create a thresholded binary image.
+
+#### 3. Image Perspective Transformation
 * Apply a perspective transform to rectify binary image ("birds-eye view").
+
+#### 4. Finding the Lane Lines
 * Detect lane pixels and fit to find the lane boundary.
+
+#### 5. Reading Lane Line Information
 * Determine the curvature of the lane and vehicle position with respect to center.
+
+#### 6. Visualiziation
 * Warp the detected lane boundaries back onto the original image.
 * Output visual display of the lane boundaries and numerical estimation of lane curvature and vehicle position.
 
 [//]: # (Image References)
 
-[image1]: ./examples/undistort_output.png "Undistorted"
-[image2]: ./test_images/test1.jpg "Road Transformed"
-[image3]: ./examples/binary_combo_example.jpg "Binary Example"
+[image1]: ./writeup\ data/chessboard_original.jpg "Original Chessboard"
+[image2]: ./writeup\ data/chessboard_corner_pts.jpg "Corner Points Drawn on Chessboard"
+[image3]: ./writeup\ data/chessboard_undistorted.jpg "Undistorted Chessboard"
 [image4]: ./examples/warped_straight_lines.jpg "Warp Example"
 [image5]: ./examples/color_fit_lines.jpg "Fit Visual"
 [image6]: ./examples/example_output.jpg "Output"
-[video1]: ./project_video.mp4 "Video"
 
-## [Rubric](https://review.udacity.com/#!/rubrics/571/view) Points
-
-### Here I will consider the rubric points individually and describe how I addressed each point in my implementation.  
+[image7]: ./examples/binary_combo_example.jpg "Binary Example"
+[image8]: ./examples/warped_straight_lines.jpg "Warp Example"
+[image9]: ./examples/color_fit_lines.jpg "Fit Visual"
+[image10]: ./examples/example_output.jpg "Output"
+[video1]: ./project_video.mp4 "Video"  
 
 ---
 
-### Writeup / README
+## 1. Camera Calibration
 
-#### 1. Provide a Writeup / README that includes all the rubric points and how you addressed each one.  You can submit your writeup as markdown or pdf.  [Here](https://github.com/udacity/CarND-Advanced-Lane-Lines/blob/master/writeup_template.md) is a template writeup for this project you can use as a guide and a starting point.  
+### 1. Briefly state how you computed the camera matrix and distortion coefficients. Provide an example of a distortion corrected calibration image.
 
-You're reading it!
+The code for this step is contained in the file `camera_calibration.py`. 
 
-### Camera Calibration
+I started by preparing "object points", which will be the (x, y, z) coordinates of the chessboard corners in the real world. Here I was assuming the 9x6 chessboard is fixed on the (x, y) plane at z=0, such that the object points are the same for each calibration image.  Thus, `objp` is just a replicated array of coordinates, and `objpoints` will be appended with a copy of it every time I successfully detect all chessboard corners in a test image.  `imgpoints` will be appended with the (x, y) pixel position of each of the corners in the image plane with each successful chessboard detection.  
 
-#### 1. Briefly state how you computed the camera matrix and distortion coefficients. Provide an example of a distortion corrected calibration image.
+I created a list of the all 19 calibration images and went through this list one by one. The images were read and then converted to grayscale. The `cv2.findChessboardCorners()` function was used in order to detect the inner corners of the 9x6 chessboard. If the corners were successfully found the `objpoints` and `imgpoints` were appended to the different lists. The `cv2.drawChessboardCorners()` function was used to draw the corners onto a copy of the images and the image file was saved to verify the result. I then used the output `objpoints` and `imgpoints` to compute the camera calibration and distortion coefficients using the `cv2.calibrateCamera()` function. The distortion correction was applied to one test image using the `cv2.undistort()` function in order to verify the result.
 
-The code for this step is contained in the first code cell of the IPython notebook located in "./examples/example.ipynb" (or in lines # through # of the file called `some_file.py`).  
-
-I start by preparing "object points", which will be the (x, y, z) coordinates of the chessboard corners in the world. Here I am assuming the chessboard is fixed on the (x, y) plane at z=0, such that the object points are the same for each calibration image.  Thus, `objp` is just a replicated array of coordinates, and `objpoints` will be appended with a copy of it every time I successfully detect all chessboard corners in a test image.  `imgpoints` will be appended with the (x, y) pixel position of each of the corners in the image plane with each successful chessboard detection.  
-
-I then used the output `objpoints` and `imgpoints` to compute the camera calibration and distortion coefficients using the `cv2.calibrateCamera()` function.  I applied this distortion correction to the test image using the `cv2.undistort()` function and obtained this result: 
+The following images show the distortion correction on one of the example pictures:
 
 ![alt text][image1]
+![alt text][image2]
+![alt text][image3]
 
 ### Pipeline (single images)
 

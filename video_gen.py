@@ -38,7 +38,7 @@ class Last_Frame():
         self.recent_radius = None
         self.recent_direction = "straight"
         self.recent_middle_pts = None
-        self.buffer_size = 10 # 1 = no buffer
+        self.buffer_size = 5 # 1 = no buffer
         self.average_left_fitx = collections.deque([], self.buffer_size)
         self.average_right_fitx = collections.deque([], self.buffer_size)
         self.average_lane_distance = collections.deque([], self.buffer_size)       
@@ -55,7 +55,7 @@ class Error():
         # Counter for counting frames with at least one error
         self.counter = 0
         # Maximum number of errors allowed before reset
-        self.max_errors = 10
+        self.max_errors = 5
         # Error for not deteting lane lines in the last images
         self.no_lines = False # Set to True for the first frame
         # Error for curvature being out of range
@@ -342,7 +342,7 @@ def process_image(img):
         right_fit = last_frame.right_line.recent_fit
 
         # margin for searching around expected location
-        margin = 60
+        margin = 80
         # identify new non zero pixels around the expected location 
         left_lane_inds = ((nonzerox > (left_fit[0]*(nonzeroy**2) + left_fit[1]*nonzeroy + left_fit[2] - margin)) & (nonzerox < (left_fit[0]*(nonzeroy**2) + left_fit[1]*nonzeroy + left_fit[2] + margin))) 
         right_lane_inds = ((nonzerox > (right_fit[0]*(nonzeroy**2) + right_fit[1]*nonzeroy + right_fit[2] - margin)) & (nonzerox < (right_fit[0]*(nonzeroy**2) + right_fit[1]*nonzeroy + right_fit[2] + margin)))  
@@ -355,6 +355,9 @@ def process_image(img):
         # Fit a new second order polynomial to each
         left_fit = np.polyfit(lefty, leftx, 2)
         right_fit = np.polyfit(righty, rightx, 2)
+        # save new polinomial fit from current frame
+        last_frame.left_line.recent_fit = left_fit
+        last_frame.right_line.recent_fit = right_fit
         # Generate x and y values for plotting
         ploty = np.linspace(0, binary_warped.shape[0]-1, binary_warped.shape[0] )
         left_fitx = left_fit[0]*ploty**2 + left_fit[1]*ploty + left_fit[2]
@@ -374,14 +377,14 @@ def process_image(img):
     
     # detected lanes are too wide or too narrow
     lane_distance = np.mean(right_fitx - left_fitx)
-    if ((lane_distance > (5 / xm_per_pix)) or (lane_distance < (3 / xm_per_pix))):
+    if ((lane_distance > (4.5 / xm_per_pix)) or (lane_distance < (3.5 / xm_per_pix))):
         tracking_errors.distance = True
 
     # detected curves are not parallel (compare with average lane line width)
     if (tracking_errors.lost_tracking == False):
         average_lane_distance = np.mean(last_frame.average_lane_distance, axis=0)
         lane_dist = average_lane_distance
-        if (((np.max(right_fitx - lane_dist - left_fitx) > (0.3 / xm_per_pix)) or np.min(right_fitx - lane_dist - left_fitx)< (-0.3 / xm_per_pix))):
+        if (((np.max(right_fitx - lane_dist - left_fitx) > (0.25 / xm_per_pix)) or np.min(right_fitx - lane_dist - left_fitx)< (-0.25 / xm_per_pix))):
             tracking_errors.parallel = True
             print ("Lines are not parallel.")
             print (xm_per_pix * np.max(right_fitx - lane_dist - left_fitx))
@@ -397,7 +400,7 @@ def process_image(img):
         tracking_errors.curvature = True
 
     # check change of curvature of both lane lines independently
-    change_factor = 3
+    change_factor = 2
     left_line_error = False
     right_line_error = False
     

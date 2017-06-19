@@ -35,6 +35,7 @@ for idx, fname in enumerate(images):
         cv2.drawChessboardCorners(img, (9,6), corners, ret)
         write_name = './corners_found/corners_found' + str(idx) + '.jpg'
         cv2.imwrite(write_name, img)
+        
 
 # load image for reference
 img = cv2.imread('./camera_cal/calibration1.jpg')
@@ -51,3 +52,10 @@ dist_pickle["mtx"] = mtx
 dist_pickle["dist"] = dist
 pickle.dump(dist_pickle, open("./calibration_file/calibration_pickle.p", "wb")) 
 
+"""
+# Save one corrected image to folder for reference
+img = cv2.imread('./camera_cal/calibration2.jpg')
+undist = cv2.undistort(img, mtx, dist, None, mtx)
+write_name = './corners_found/undistorted2.jpg'
+cv2.imwrite(write_name, undist)
+"""

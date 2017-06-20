@@ -408,7 +408,7 @@ def process_image(img):
     left_line_error = False
     right_line_error = False
     
-    if (tracking_errors.lost_tracking == False):
+    if (tracking_errors.lost_tracking == False and tracking_errors.curvature = False and tracking_errors.direction  = False and tracking_errors.parallel = False and tracking_errors.distance = False):
         ### average_lane_distance = np.mean(last_frame.average_lane_distance, axis=0)
         if (left_curverad_m > change_factor*last_frame.left_line.last_radius_m or left_curverad_m < last_frame.left_line.last_radius_m/change_factor):
             print("Problem with left curvature")
@@ -488,7 +488,7 @@ def process_image(img):
     # Calculate (smoothened) radius, direction and points for middle line
     left_curverad_m, middle_curverad_m, right_curverad_m, direction, middle_pts = calculate_middle_line(left_fitx, right_fitx, ploty)
 
-    # check if at least one sanity check has failed in the last {max_errors} frames
+    # check if at least one sanity check has failed in all of the last {max_errors} frames
     if (tracking_errors.counter >= tracking_errors.max_errors):
         # print the description of the occured errors
         print (tracking_errors.error_list)

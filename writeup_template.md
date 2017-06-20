@@ -37,15 +37,14 @@ The project covered the following content:
 [image2]: ./writeup_data/chessboard_corner_pts.jpg "Corner Points Drawn on Chessboard"
 [image3]: ./writeup_data/chessboard_undistorted.jpg "Undistorted Chessboard"
 [image4]: ./writeup_data/pic_before_clahe.jpg "Original Image with Shadows"
-[image5]: ./writeup_data/pic_after_clahe.jpg "Equalized Image with Shadows"
+[image5]: ./writeup_data/clahe.jpg "Equalized Image with Shadows"
 [image6]: ./writeup_data/test_image.jpg "Test Image"
 [image7]: ./writeup_data/hls.jpg "HLS Test Image"
 [image8]: ./writeup_data/rgb.jpg "RGB Test Image"
 [image9]: ./writeup_data/gradx.jpg "Sobel Grad X Test Image"
 [image10]: ./writeup_data/grady.jpg "Sobel Grad Y Test Image"
-[image11]: ./writeup_data/sobel.jpg "Combined Sobel Test Image"
+[image11]: ./writeup_data/sobel_total.jpg "Combined Sobel Test Image"
 [image12]: ./writeup_data/preprocessed.jpg "Combined Binary Image"
-
 [image13]: ./writeup_data/warped.jpg "Warped Image"
 [image14]: ./writeup_data/detected.jpg "Detected Lines Image"
 [image15]: ./writeup_data/marker.jpg "Drawn Lines Image"
@@ -82,7 +81,7 @@ The images were opened and undistorted with the help of the saved correction par
 
 Here is an example of an equalized image:
 
-![alt text][image4]
+![alt text][image6]
 ![alt text][image5]
 
 After the image was equalized copies of the image were modified with the help of two self-created funtions `hls_threshold` and `rgb_threshold`. `hls_threshold` converts the image to HLS color space and looks for values of the s channel that are in between two threshold values, which are defined as parameters of the function. A binary copy of the image is populated with this data, which means that all pixels of the image that are satisfying the threshold criteria are converted to 1, all other pixels have 0 value. The function `rgb_threshold` does the same thing with separate threshold parameters on the r channel and returns a binary image as well. Below you can see the result of `hls_threshold` and `rgb_threshold`, where the first-mentioned function seems to better pick up he yellow lines, while the white lines are better detected by the r channel in RGB color space.
@@ -144,7 +143,7 @@ In order to visualize the results of the calculated polinomial and the overall p
 
 The picture was then warped back to the original perspective with the inverse transformation matrix `Minv` and the function `cv2.warpPerspective()`. This picture was then overlayed with the original image by using `cv2.addWeighted()` in order to highlight the different detected zones. Additional infomation was included by adding text to the image using `cv2.putText()`. The result looks as follows:
 
-![alt text][image15]
+![alt text][image16]
 
 
 

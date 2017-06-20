@@ -162,20 +162,11 @@ In order to avoid any misinterpretation and wrong curvature calculations I added
 * It was verified that the curvature was over a certain minimum radius (150m for the highway test video).
 * Both lane lines were checked individually if they changed there curvature value abruptly from one frame to the other. If the change was higher than `change_factor` (set to 3) a specific error flag for this specific line was set. If the other line was considered to be "good" based on all other sanity checks the "bad" line was replaced with a copy of the "good" line in average distance (left or right) to the "good" line. No error flag was set in this situation.
 
-If at least one sanity check failed the error counter `tracking_errors.counter` was increased by one, the error mode was added to a error list (`tracking_errors.add_errors_to_list()`), the values of the old frame were used, and all errors flags were reset to "False". If no error occured the error counter was reset to 0, the error list was emptied and all current values were saved in the variables for the parameters of the last frame.
+If at least one sanity check failed the error counter `tracking_errors.counter` was increased by one, the error mode was added to a error list (`tracking_errors.add_errors_to_list()`), the values of the old frame were used, and all errors flags were reset to "False". If no error occured the error counter was reset to 0, the error list was emptied and all current values were saved in the variables for the parameters of the last frame. After that the output was smoothened to reduce the effect of "jumping lines" by using a FIFO buffer with a `collections.deque()` container. The buffer size was defined in the variable `last_frame.buffer_size` and was set to 8. This provided a good smoothening effect while still being able to adapt quickly to curvature changes. The image was visualized the same way as before, but now based on the smoothened results.
 
-After that the output was smoothened to reduce the effect of "jumping lines" by using a FIFO buffer with a `collections.deque()` container. The buffer size was defined in the variable `last_frame.buffer_size` and was set to 8. This provided a good smoothening effect while still being able to adapt quickly to curvature changes.
+All different steps were again saved in images and this time added as smaller images/videos that were overlayed with the final result. This was very important for tuning, trouble shooting and understanding of the influences of the differnent parameters.
 
 
 ## 8. Outlook
 
-
-
-
-
-
-### Discussion
-
-#### 1. Briefly discuss any problems / issues you faced in your implementation of this project.  Where will your pipeline likely fail?  What could you do to make it more robust?
-
-Here I'll talk about the approach I took, what techniques I used, what worked and why, where the pipeline might fail and how I might improve it if I were going to pursue this project further.  
+In order to make the algorithm more versatile and robust additional information could have been used to automatically adjust certain parameters, such as the different thresholds, field of view, error flag limitations etc. Those parameters could have been speed of the vehicle, type of street the vehicle is currently on (highway vs. narrow road), time of the day, weather and many more. This would allow the algorithm to automatically adjust to different conditions on small roads, city streets, or highways.

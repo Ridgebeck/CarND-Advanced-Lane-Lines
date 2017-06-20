@@ -233,7 +233,6 @@ for idx, fname in enumerate(images):
     histogram = np.sum(binary_warped[int(binary_warped.shape[0]/2):,:], axis=0)
     # Find the peak of the left and right halves of the histogram, which will be the starting point for the left and right lines
     midpoint = np.int(histogram.shape[0]/2)
-
     # Store base values as starting points for next frames
     last_frame.leftx_base = np.argmax(histogram[:midpoint])
     last_frame.rightx_base = np.argmax(histogram[midpoint:]) + midpoint
@@ -301,10 +300,6 @@ for idx, fname in enumerate(images):
     ploty = np.linspace(0, binary_warped.shape[0]-1, binary_warped.shape[0] )
     left_fitx = left_fit[0]*ploty**2 + left_fit[1]*ploty + left_fit[2]
     right_fitx = right_fit[0]*ploty**2 + right_fit[1]*ploty + right_fit[2]
-
-    # Generate colored lane line image
-    out_img[nonzeroy[left_lane_inds], nonzerox[left_lane_inds]] = [255, 0, 0]
-    out_img[nonzeroy[right_lane_inds], nonzerox[right_lane_inds]] = [0, 0, 255]
 
     # save polinomial fit from current frame
     last_frame.left_line.recent_fit = left_fit

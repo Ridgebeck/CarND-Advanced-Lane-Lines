@@ -164,7 +164,7 @@ In order to avoid any misinterpretation and wrong curvature calculations I added
 
 If at least one sanity check failed the error counter `tracking_errors.counter` was increased by one, the error mode was added to a error list (`tracking_errors.add_errors_to_list()`), the values of the old frame were used, and all errors flags were reset to "False". If no error occured the error counter was reset to 0, the error list was emptied and all current values were saved in the variables for the parameters of the last frame. After that the output was smoothened to reduce the effect of "jumping lines" by using a FIFO buffer with a `collections.deque()` container. The buffer size was defined in the variable `last_frame.buffer_size` and was set to 8. This provided a good smoothening effect while still being able to adapt quickly to curvature changes. The image was visualized the same way as before, but now based on the smoothened results.
 
-All different steps were again saved in images and this time added as smaller images/videos that were overlayed with the final result. This was very important for tuning, trouble shooting and understanding of the influences of the differnent parameters.
+All different steps were again saved in images and this time added as smaller images/videos that were overlayed with the final result. This was very important for tuning, trouble shooting and understanding of the influences of the differnent parameters. The result is the video `output_video_highway.mp4`.
 
 
 ## 8. Outlook

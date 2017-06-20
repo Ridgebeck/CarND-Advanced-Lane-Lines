@@ -31,6 +31,9 @@ The project covered the following content:
 #### 7. Video Pipeline
 * Additional features of the video pipeline
 
+#### 8. Outlook
+* What could be further done to improve the results?
+
 [//]: # (Image References)
 
 [image1]: ./writeup_data/chessboard_original.jpg "Original Chessboard"
@@ -144,6 +147,30 @@ In order to visualize the results of the calculated polinomial and the overall p
 The picture was then warped back to the original perspective with the inverse transformation matrix `Minv` and the function `cv2.warpPerspective()`. This picture was then overlayed with the original image by using `cv2.addWeighted()` in order to highlight the different detected zones. Additional infomation was included by adding text to the image using `cv2.putText()`. The result looks as follows:
 
 ![alt text][image16]
+
+All pictures from the different stages were saved in the output image folder (/output_images) in order to evaluate the performance of the different steps such as sobel, hls and rgb color thresholding, line detection etc. 
+
+
+## 7. Video Pipeline
+
+For the video pipeline I used a new file called `video_gen.py`. The video was opened and the single images processed by using the functions `VideoFileClip()` and `fl_image()` from the `moviepy.editor` library. Additionally a class for storing the values from the last frame (`Last_Frame()`) was created that also contained a class `Line()` for the values for the left and right lane line parameters. ANother class called `Error()` was created in order to store error information. In addition to the sliding window approach I used the approach to search around the last frame's lane line position. The margin for this search window in x direction was set to 80 pixels after a couple trials. This gave good results to find enough lane line pixels without including to much noise around the lane lines. You can find the code strating in line 335 in `video_gen.py`.
+
+In order to avoid any misinterpretation and wrong curvature calculations I added some sanity checks that were applied to each image. The following was verified for each image:
+* It was checked if the lane lines are in a certain distance or if they are to close together or too far apart.
+* The lines were checked for parallelism and if the lines were further than a certain margin over or under the average distance an error flag was set.
+* If the lane changes direction abruptly from one frame to the other without going through the "straight" section (radius > 3,000m) an error flag was set.
+* It was verified that the curvature was over a certain minimum radius (150m for the highway test video).
+* Both lane lines were checked individually if they changed there curvature value abruptly from one frame to the other. If the change was higher than `change_factor` (set to 3) a specific error flag for this specific line was set. If the other line was considered to be "good" based on all other sanity checks the "bad" line was replaced with a copy of the "good" line in average distance (left or right) to the "good" line. No error flag was set in this situation.
+
+If at least one sanity check failed the error counter `tracking_errors.counter` was increased by one, the error mode was added to a error list (`tracking_errors.add_errors_to_list()`), the values of the old frame were used, and all errors flags were reset to "False". If no error occured the error counter was reset to 0, the error list was emptied and all current values were saved in the variables for the parameters of the last frame.
+
+After that the output was smoothened to reduce the effect of "jumping lines" by using a FIFO buffer with a `collections.deque()` container. The buffer size was defined in the variable `last_frame.buffer_size` and was set to 8. This provided a good smoothening effect while still being able to adapt quickly to curvature changes.
+
+
+## 8. Outlook
+
+
+
 
 
 

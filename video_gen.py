@@ -38,7 +38,7 @@ class Last_Frame():
         self.recent_radius = None
         self.recent_direction = "straight"
         self.recent_middle_pts = None
-        self.buffer_size = 5 # 1 = no buffer
+        self.buffer_size = 8 # 1 = no buffer
         self.average_left_fitx = collections.deque([], self.buffer_size)
         self.average_right_fitx = collections.deque([], self.buffer_size)
         self.average_lane_distance = collections.deque([], self.buffer_size)       
@@ -55,7 +55,7 @@ class Error():
         # Counter for counting frames with at least one error
         self.counter = 0
         # Maximum number of errors allowed before reset
-        self.max_errors = 5
+        self.max_errors = 10
         # Error for not deteting lane lines in the last images
         self.no_lines = False # Set to True for the first frame
         # Error for curvature being out of range
@@ -147,11 +147,11 @@ def rgb_threshold(image, rthresh=(0,255)):
 def calculate_middle_line(left_fitx, right_fitx, ploty):
     # Calculate line in the middle
     bottom_center = left_fitx[-1] + (right_fitx[-1] - left_fitx[-1])/2
-    lower_third = left_fitx[len(left_fitx)/3] + (right_fitx[len(right_fitx)/3] - left_fitx[len(left_fitx)/3])/2
-    upper_third = left_fitx[2*len(left_fitx)/3] + (right_fitx[2*len(right_fitx)/3] - left_fitx[2*len(left_fitx)/3])/2
+    lower_third = left_fitx[int(len(left_fitx)/3)] + (right_fitx[int(len(right_fitx)/3)] - left_fitx[int(len(left_fitx)/3)])/2
+    upper_third = left_fitx[int(2*len(left_fitx)/3)] + (right_fitx[int(2*len(right_fitx)/3)] - left_fitx[int(2*len(left_fitx)/3)])/2
     top_center = left_fitx[0] + (right_fitx[0] - left_fitx[0])/2
     center_pts_x = [bottom_center, lower_third, upper_third, top_center]
-    center_pts_y = [ploty[-1], ploty[len(ploty)/3], ploty[2*len(ploty)/3], ploty[0]]
+    center_pts_y = [ploty[-1], ploty[int(len(ploty)/3)], ploty[int(2*len(ploty)/3)], ploty[0]]
     middle_fit = np.polyfit(center_pts_y, center_pts_x, 2)
     middle_fitx = middle_fit[0]*ploty**2 + middle_fit[1]*ploty + middle_fit[2]
     middle_pts = np.array([np.transpose(np.vstack([middle_fitx, ploty]))])
@@ -183,53 +183,60 @@ def calculate_middle_line(left_fitx, right_fitx, ploty):
 
 def process_image(img):
 
-    # undistort image
+    # Save image size parameters
+    img_size = (img.shape[1], img.shape[0])
+    
+    # Undistort image
     orig_img = cv2.undistort(img, mtx, dist, None, mtx)
     
-    # equalize the Y channel to correct changes in brightness
+    # Equalize the Y channel to correct changes in brightness
     img_yuv = cv2.cvtColor(orig_img, cv2.COLOR_BGR2YUV)
-    # create a CLAHE object
+    # Create a CLAHE object
     clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8,8))
     # Apply Contrast Limited Adaptive Histogram Equalization
     img_yuv[:,:,0] = clahe.apply(img_yuv[:,:,0])
-    # convert the YUV image back to BGR format
+    # Convert the YUV image back to BGR format
     img = cv2.cvtColor(img_yuv, cv2.COLOR_YUV2BGR)
 
-    # detect lines in different clor spaces
-    hls_binary = hls_threshold(img, sthresh=(65,255)) # sthresh=(100,255)
-    rgb_binary = rgb_threshold(img, rthresh=(185,255)) # rthresh=(200,255)
+    # Detect lines in different color spaces
+    hls_binary = hls_threshold(img, sthresh=(190,255)) # sthresh=(100,255)
+    rgb_binary = rgb_threshold(img, rthresh=(247,255)) # rthresh=(200,255)
 
-    # Calculate sobel
-    gradx = abs_sobel_thresh(img, orient='x', thresh=(3,255)) #12
-    grady = abs_sobel_thresh(img, orient='y', thresh=(5,255)) #25
+    # Calculate x and y sobel
+    gradx = abs_sobel_thresh(img, orient='x', thresh=(25,255)) #12
+    grady = abs_sobel_thresh(img, orient='y', thresh=(35,255)) #25
 
+    # Combine x and y sobel images
     sobel = np.zeros_like(img[:,:,0]) 
     sobel[((gradx == 1) & (grady == 1))] = 1
 
     #sobel = dir_threshold(img, sobel_kernel=15, thresh=(0.7, 1.3))
-    
+
+    # Combine sobel results with color space results into a single image 
     preprocessImage = np.zeros_like(img[:,:,0])   
-    preprocessImage[((sobel == 1) & (hls_binary == 1) | (sobel == 1) & (rgb_binary == 1))] = 255 # preprocessImage[((gradx == 1) & (grady == 1) | (hls_binary == 1))] = 255
+    preprocessImage[((sobel == 1) | (hls_binary == 1) | (rgb_binary == 1))] = 255
+
     
-    img_size = (img.shape[1], img.shape[0])
+    """
+    # Define trapezoidal on image for image transformation
     bot_width = .76 # percent of bottom trapezoid height 0.76
     mid_width = .08 # percent of middle trapezoid height 0.08
     height_pct = .62 # percent of trapezoid height 0.62
     bottom_trim = .92 # percent from top to bottom to avoid car hood 0.935
 
-    #src = np.float32([[img_size[0]*(.5-mid_width/2), img_size[1]*height_pct], [img_size[0]*(.5+mid_width/2), img_size[1]*height_pct], [img_size[0]*(.5+bot_width/2), img_size[1]*bottom_trim], [img_size[0]*(.5-bot_width/2), img_size[1]*bottom_trim]])
-    #offset = img_size[0]*.25
-    #dst = np.float32([[offset, 0], [img_size[0]-offset, 0], [img_size[0]-offset, img_size[1]], [offset, img_size[1]]])
+    src = np.float32([[img_size[0]*(.5-mid_width/2), img_size[1]*height_pct], [img_size[0]*(.5+mid_width/2), img_size[1]*height_pct], [img_size[0]*(.5+bot_width/2), img_size[1]*bottom_trim], [img_size[0]*(.5-bot_width/2), img_size[1]*bottom_trim]])
+    offset = img_size[0]*.25
+    dst = np.float32([[offset, 0], [img_size[0]-offset, 0], [img_size[0]-offset, img_size[1]], [offset, img_size[1]]])
+    """
 
+    # Define source and destination trapezoidal on image for image transformation
     src = np.float32([[265,669], [577,460], [704,460], [1040,669]]) # TRACK 1
     #src = np.float32([[310,686], [563,514], [772,514], [1046,686]]) # short: [552,516], [785,516]  / middle: [531,492], [755,492] / long: [577,460], [704,460] / very long: [599,445], [680,445] // [265,669], [1040,669]
-    
     dst = np.float32([[310,719], [310,0], [920,0], [920,719]])
 
     # perform the transform
     M = cv2.getPerspectiveTransform(src, dst)
     Minv = cv2.getPerspectiveTransform(dst, src)
-    #warped = cv2.warpPerspective(preprocessImage, M, img_size, flags=cv2.INTER_LINEAR)
     binary_warped = cv2.warpPerspective(preprocessImage, M, img_size, flags=cv2.INTER_LINEAR)
     # Create an output image to draw on and  visualize the result
     out_img = np.dstack((binary_warped, binary_warped, binary_warped))*255
@@ -238,16 +245,13 @@ def process_image(img):
     if (tracking_errors.lost_tracking == True):
 
         # Take a histogram of the bottom half of the image
-        histogram = np.sum(binary_warped[binary_warped.shape[0]/2:,:], axis=0)
-        # Find the peak of the left and right halves of the histogram
-        # These will be the starting point for the left and right lines
+        histogram = np.sum(binary_warped[int(binary_warped.shape[0]/2):,:], axis=0)
+        # Find the peak of the left and right halves of the histogram, which will be the starting point for the left and right lines
         midpoint = np.int(histogram.shape[0]/2)
     
         # Store base values as starting points for next frames
         last_frame.leftx_base = np.argmax(histogram[:midpoint])
         last_frame.rightx_base = np.argmax(histogram[midpoint:]) + midpoint
-            
-            #last_frame.first_frame = False # UNCOMMENT WHEN SMOOTHENING IS ACTIVE
 
         # Choose the number of sliding windows
         nwindows = 14
@@ -261,7 +265,7 @@ def process_image(img):
         leftx_current = last_frame.leftx_base
         rightx_current = last_frame.rightx_base
         # Set the width of the windows +/- margin for first window
-        margin = 80
+        margin = 100
         # Set minimum number of pixels found to recenter window
         minpix = 50
         # Create empty lists to receive left and right lane pixel indices
@@ -292,7 +296,7 @@ def process_image(img):
             if len(good_right_inds) > minpix:        
                 rightx_current = np.int(np.mean(nonzerox[good_right_inds]))
             # Change the window margin for all other windows (besides the first)
-            margin = 60
+            margin = 80
 
         # Concatenate the arrays of indices
         left_lane_inds = np.concatenate(left_lane_inds)
@@ -384,7 +388,7 @@ def process_image(img):
     if (tracking_errors.lost_tracking == False):
         average_lane_distance = np.mean(last_frame.average_lane_distance, axis=0)
         lane_dist = average_lane_distance
-        if (((np.max(right_fitx - lane_dist - left_fitx) > (0.25 / xm_per_pix)) or np.min(right_fitx - lane_dist - left_fitx)< (-0.25 / xm_per_pix))):
+        if (((np.max(right_fitx - lane_dist - left_fitx) > (0.5 / xm_per_pix)) or np.min(right_fitx - lane_dist - left_fitx)< (-0.5 / xm_per_pix))):
             tracking_errors.parallel = True
             print ("Lines are not parallel.")
             print (xm_per_pix * np.max(right_fitx - lane_dist - left_fitx))
@@ -400,7 +404,7 @@ def process_image(img):
         tracking_errors.curvature = True
 
     # check change of curvature of both lane lines independently
-    change_factor = 2
+    change_factor = 3
     left_line_error = False
     right_line_error = False
     

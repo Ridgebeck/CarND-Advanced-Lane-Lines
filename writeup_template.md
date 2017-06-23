@@ -169,4 +169,4 @@ All different steps were again saved in images and this time added as smaller im
 
 ## 8. Outlook
 
-In order to make the algorithm more versatile and robust additional information could have been used to automatically adjust certain parameters, such as the different thresholds, field of view, error flag limitations etc. Those parameters could have been speed of the vehicle, type of street the vehicle is currently on (highway vs. narrow road), time of the day, weather and many more. This would allow the algorithm to automatically adjust to different conditions on small roads, city streets, or highways.
+In order to make the algorithm more versatile and robust additional information could have been used to automatically adjust certain parameters, such as the different thresholds, field of view, error flag limitations etc. Those parameters could have been speed of the vehicle, type of street the vehicle is currently on (e.g. highway vs. curvy road), time of the day, weather and many more. This would allow the algorithm to automatically adjust to different conditions.

@@ -19,6 +19,7 @@ dist_pickle = pickle.load(open("./calibration_file/calibration_pickle.p", "rb"))
 mtx = dist_pickle["mtx"]
 dist = dist_pickle["dist"]
 
+
 # Line class to store certain features and perform sanity checks
 class Line():
     def __init__(self):
@@ -29,9 +30,10 @@ class Line():
         # polynomial fitx of last "good" frame
         self.recent_fitx = None
         # radius of curvature of the line in meters
-        self.last_radius_m = None 
+        self.last_radius_m = None
         # distance in meters of vehicle center from the line
         self.line_base_pos = None 
+
 
 class Last_Frame():
     def __init__(self):
@@ -47,6 +49,7 @@ class Last_Frame():
                 
         self.left_line = Line()
         self.right_line = Line()
+
 
 class Error():
     def __init__(self):
@@ -83,7 +86,8 @@ class Error():
             error_message += "direction "
         error_message += "\n"
         self.error_list.append(error_message)
-   
+
+  
 def abs_sobel_thresh(img, orient='x', sobel_kernel=3, thresh=(0,255)):
     # Convert to grayscale
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
@@ -99,6 +103,8 @@ def abs_sobel_thresh(img, orient='x', sobel_kernel=3, thresh=(0,255)):
     # apply threshold
     binary_output[(scaled_sobel >= thresh[0])&(scaled_sobel <= thresh[1])] = 1
     return binary_output
+
+
 """
 def mag_threshold(image, sobel_kernel=3, mag_thresh=(0,255)):
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY) 
@@ -112,6 +118,7 @@ def mag_threshold(image, sobel_kernel=3, mag_thresh=(0,255)):
     binary_output[(gradmag >= mag_thresh[0])&(gradmag <= mag_thresh[1])] = 1
     return binary_output
 
+
 def dir_threshold(image, sobel_kernel=3, thresh=(0, np.pi/2)):
     # calculate gradient direction
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
@@ -124,7 +131,9 @@ def dir_threshold(image, sobel_kernel=3, thresh=(0, np.pi/2)):
         binary_output[(absgraddir >= thresh[0]) & (absgraddir <= thresh[1])] = 1
         
     return binary_output
-"""    
+"""
+
+
 def hls_threshold(image, sthresh=(0,255)):
     hls = cv2.cvtColor(image, cv2.COLOR_BGR2HLS)
     s_channel = hls[:,:,2]
@@ -136,6 +145,7 @@ def hls_threshold(image, sthresh=(0,255)):
     
     return output
 
+
 def rgb_threshold(image, rthresh=(0,255)):
     r_channel = image[:,:,2] # BGR image format
     r_binary = np.zeros_like(r_channel)
@@ -145,6 +155,136 @@ def rgb_threshold(image, rthresh=(0,255)):
     output[(r_binary == 1)] = 1
     
     return output
+
+
+def sliding_window(binary_warped, out_img):
+    # Take a histogram of the bottom half of the image
+    histogram = np.sum(binary_warped[int(binary_warped.shape[0]/2):,:], axis=0)
+    # Find the peak of the left and right halves of the histogram, which will be the starting point for the left and right lines
+    midpoint = np.int(histogram.shape[0]/2)
+
+    # Store base values as starting points for next frames
+    last_frame.leftx_base = np.argmax(histogram[:midpoint])
+    last_frame.rightx_base = np.argmax(histogram[midpoint:]) + midpoint
+
+    # Choose the number of sliding windows
+    nwindows = 14
+    # Set height of windows
+    window_height = np.int(binary_warped.shape[0]/nwindows)
+    # Identify the x and y positions of all nonzero pixels in the image
+    nonzero = binary_warped.nonzero()
+    nonzeroy = np.array(nonzero[0])
+    nonzerox = np.array(nonzero[1])
+    # Current positions to be updated for each window
+    leftx_current = last_frame.leftx_base
+    rightx_current = last_frame.rightx_base
+    # Set the width of the windows +/- margin for first window
+    margin = 100
+    # Set minimum number of pixels found to recenter window
+    minpix = 50
+    # Create empty lists to receive left and right lane pixel indices
+    left_lane_inds = []
+    right_lane_inds = []
+
+    # Step through the windows one by one
+    for window in range(nwindows):
+        # Identify window boundaries in x and y (and right and left)
+        win_y_low = binary_warped.shape[0] - (window+1)*window_height
+        win_y_high = binary_warped.shape[0] - window*window_height
+        win_xleft_low = leftx_current - margin
+        win_xleft_high = leftx_current + margin
+        win_xright_low = rightx_current - margin
+        win_xright_high = rightx_current + margin
+        # Draw the windows on the visualization image
+        cv2.rectangle(out_img,(win_xleft_low,win_y_low),(win_xleft_high,win_y_high),(0,255,0), 2) 
+        cv2.rectangle(out_img,(win_xright_low,win_y_low),(win_xright_high,win_y_high),(0,255,0), 2) 
+        # Identify the nonzero pixels in x and y within the window
+        good_left_inds = ((nonzeroy >= win_y_low) & (nonzeroy < win_y_high) & (nonzerox >= win_xleft_low) & (nonzerox < win_xleft_high)).nonzero()[0]
+        good_right_inds = ((nonzeroy >= win_y_low) & (nonzeroy < win_y_high) & (nonzerox >= win_xright_low) & (nonzerox < win_xright_high)).nonzero()[0]
+        # Append these indices to the lists
+        left_lane_inds.append(good_left_inds)
+        right_lane_inds.append(good_right_inds)
+        # If you found > minpix pixels, recenter next window on their mean position
+        if len(good_left_inds) > minpix:
+            leftx_current = np.int(np.mean(nonzerox[good_left_inds]))
+        if len(good_right_inds) > minpix:        
+            rightx_current = np.int(np.mean(nonzerox[good_right_inds]))
+        # Change the window margin for all other windows (besides the first)
+        margin = 80
+
+    # Concatenate the arrays of indices
+    left_lane_inds = np.concatenate(left_lane_inds)
+    right_lane_inds = np.concatenate(right_lane_inds)
+
+    # Extract left and right line pixel positions
+    leftx = nonzerox[left_lane_inds]
+    lefty = nonzeroy[left_lane_inds] 
+    rightx = nonzerox[right_lane_inds]
+    righty = nonzeroy[right_lane_inds] 
+
+    # Fit a second order polynomial to each
+    left_fit = np.polyfit(lefty, leftx, 2)
+    right_fit = np.polyfit(righty, rightx, 2)
+
+    # Generate x and y values for plotting
+    ploty = np.linspace(0, binary_warped.shape[0]-1, binary_warped.shape[0] )
+    left_fitx = left_fit[0]*ploty**2 + left_fit[1]*ploty + left_fit[2]
+    right_fitx = right_fit[0]*ploty**2 + right_fit[1]*ploty + right_fit[2]
+
+    # Generate colored lane line image
+    out_img[nonzeroy[left_lane_inds], nonzerox[left_lane_inds]] = [255, 0, 0]
+    out_img[nonzeroy[right_lane_inds], nonzerox[right_lane_inds]] = [0, 0, 255]
+
+    # save polinomial fit from current frame
+    last_frame.left_line.recent_fit = left_fit
+    last_frame.right_line.recent_fit = right_fit
+
+    # Set back error after first frame was processed
+    #tracking_errors.lost_tracking = False
+
+    return left_fitx, right_fitx, ploty, out_img
+
+
+def search_with_margin(binary_warped, out_img):
+    # Assume you now have a new warped binary image 
+    # from the next frame of video (also called "binary_warped")
+    # It's now much easier to find line pixels!
+    nonzero = binary_warped.nonzero()
+    nonzeroy = np.array(nonzero[0])
+    nonzerox = np.array(nonzero[1])
+
+    # load polinomial fit from last frame
+    left_fit = last_frame.left_line.recent_fit
+    right_fit = last_frame.right_line.recent_fit
+
+    # margin for searching around expected location
+    margin = 80
+    # identify new non zero pixels around the expected location 
+    left_lane_inds = ((nonzerox > (left_fit[0]*(nonzeroy**2) + left_fit[1]*nonzeroy + left_fit[2] - margin)) & (nonzerox < (left_fit[0]*(nonzeroy**2) + left_fit[1]*nonzeroy + left_fit[2] + margin))) 
+    right_lane_inds = ((nonzerox > (right_fit[0]*(nonzeroy**2) + right_fit[1]*nonzeroy + right_fit[2] - margin)) & (nonzerox < (right_fit[0]*(nonzeroy**2) + right_fit[1]*nonzeroy + right_fit[2] + margin)))  
+
+    # Again, extract left and right line pixel positions
+    leftx = nonzerox[left_lane_inds]
+    lefty = nonzeroy[left_lane_inds] 
+    rightx = nonzerox[right_lane_inds]
+    righty = nonzeroy[right_lane_inds]
+    # Fit a new second order polynomial to each
+    left_fit = np.polyfit(lefty, leftx, 2)
+    right_fit = np.polyfit(righty, rightx, 2)
+    # save new polinomial fit from current frame
+    last_frame.left_line.recent_fit = left_fit
+    last_frame.right_line.recent_fit = right_fit
+    # Generate x and y values for plotting
+    ploty = np.linspace(0, binary_warped.shape[0]-1, binary_warped.shape[0] )
+    left_fitx = left_fit[0]*ploty**2 + left_fit[1]*ploty + left_fit[2]
+    right_fitx = right_fit[0]*ploty**2 + right_fit[1]*ploty + right_fit[2]
+
+    # Generate colored lane line image
+    out_img[nonzeroy[left_lane_inds], nonzerox[left_lane_inds]] = [255, 0, 0]
+    out_img[nonzeroy[right_lane_inds], nonzerox[right_lane_inds]] = [0, 0, 255]
+
+    return left_fitx, right_fitx, ploty, out_img
+
 
 def calculate_middle_line(left_fitx, right_fitx, ploty):
     # Calculate line in the middle
@@ -181,6 +321,67 @@ def calculate_middle_line(left_fitx, right_fitx, ploty):
             direction = "left"
     
     return left_curverad_m, middle_curverad_m, right_curverad_m, direction, middle_pts
+
+
+def check_lane_lines(left_fitx, right_fitx, direction, average_lane_distance):
+   
+    # detected lanes are too wide or too narrow
+    lane_distance = np.mean(right_fitx - left_fitx)
+    if ((lane_distance > (4.5 / xm_per_pix)) or (lane_distance < (3.5 / xm_per_pix))):
+        tracking_errors.distance = True
+
+    # detected curves are not parallel (compare with average lane line width)
+    if (tracking_errors.first_frame == False):
+        lane_dist = average_lane_distance
+        if (((np.max(right_fitx - lane_dist - left_fitx) > (0.5 / xm_per_pix)) or np.min(right_fitx - lane_dist - left_fitx)< (-0.5 / xm_per_pix))):
+            tracking_errors.parallel = True
+            print ("Lines are not parallel.")
+            print (xm_per_pix * np.max(right_fitx - lane_dist - left_fitx))
+        
+    # detected curve changes direction abruptly
+    if (last_frame.recent_direction == "right" and direction == "left" or last_frame.recent_direction == "left" and direction == "right"):
+        tracking_errors.direction  = True
+
+    return
+
+
+def check_line_curvature(left_curverad_m, middle_curverad_m, right_curverad_m, left_fitx, right_fitx):
+     
+    # check minimum curvature of lane
+    minimum_curvature = 150 # 150   ~500ft for highway
+    if (middle_curverad_m < minimum_curvature):
+        print("Curve < 150m")
+        tracking_errors.curvature = True
+
+    # check change of curvature of both lane lines independently
+    change_factor = 3
+    left_line_error = False
+    right_line_error = False
+    
+    if (tracking_errors.first_frame == False and tracking_errors.curvature == False and tracking_errors.direction == False and tracking_errors.parallel == False and tracking_errors.distance == False):
+
+        average_lane_distance = np.mean(last_frame.average_lane_distance, axis=0)
+        if (left_curverad_m > change_factor*last_frame.left_line.last_radius_m or left_curverad_m < last_frame.left_line.last_radius_m/change_factor):
+            print("Problem with left curvature")
+            left_line_error = True
+        if (right_curverad_m > change_factor*last_frame.right_line.last_radius_m or right_curverad_m < last_frame.right_line.last_radius_m/change_factor):
+            print("Problem with right curvature")
+            right_line_error = True
+    else:
+        average_lane_distance = np.mean(right_fitx - left_fitx)
+
+    # Correct left or right line with a copy from the other "good" line
+    # If both lines are bad use all data from last frame
+    if (left_line_error == True and right_line_error == True):
+        tracking_errors.curvature = True
+    elif (left_line_error == True):
+        print("Left line corrected")
+        left_fitx = right_fitx - average_lane_distance
+    elif (right_line_error == True):
+        print("Right line corrected")
+        right_fitx = left_fitx + average_lane_distance
+
+    return
 
 
 def process_image(img):
@@ -231,6 +432,8 @@ def process_image(img):
     dst = np.float32([[offset, 0], [img_size[0]-offset, 0], [img_size[0]-offset, img_size[1]], [offset, img_size[1]]])
     """
 
+    # TRANSFORM THE IMAGE
+
     # Define source and destination trapezoidal on image for image transformation
     src = np.float32([[265,669], [577,460], [704,460], [1040,669]]) # TRACK 1
     #src = np.float32([[310,686], [563,514], [772,514], [1046,686]]) # short: [552,516], [785,516]  / middle: [531,492], [755,492] / long: [577,460], [704,460] / very long: [599,445], [680,445] // [265,669], [1040,669]
@@ -243,136 +446,20 @@ def process_image(img):
     # Create an output image to draw on and  visualize the result
     out_img = np.dstack((binary_warped, binary_warped, binary_warped))*255
 
-    # For first frame at the beginning and after line detection was lost (sliding window approach)
+
+    # FIND LANE LINE POINTS AND FIT POLYNOMIALS TO IT
+    
+    # For first frame at the beginning and after line detection was lost
     if (tracking_errors.first_frame == True or tracking_errors.lost_tracking == True):
-
-        # Take a histogram of the bottom half of the image
-        histogram = np.sum(binary_warped[int(binary_warped.shape[0]/2):,:], axis=0)
-        # Find the peak of the left and right halves of the histogram, which will be the starting point for the left and right lines
-        midpoint = np.int(histogram.shape[0]/2)
-    
-        # Store base values as starting points for next frames
-        last_frame.leftx_base = np.argmax(histogram[:midpoint])
-        last_frame.rightx_base = np.argmax(histogram[midpoint:]) + midpoint
-
-        # Choose the number of sliding windows
-        nwindows = 14
-        # Set height of windows
-        window_height = np.int(binary_warped.shape[0]/nwindows)
-        # Identify the x and y positions of all nonzero pixels in the image
-        nonzero = binary_warped.nonzero()
-        nonzeroy = np.array(nonzero[0])
-        nonzerox = np.array(nonzero[1])
-        # Current positions to be updated for each window
-        leftx_current = last_frame.leftx_base
-        rightx_current = last_frame.rightx_base
-        # Set the width of the windows +/- margin for first window
-        margin = 100
-        # Set minimum number of pixels found to recenter window
-        minpix = 50
-        # Create empty lists to receive left and right lane pixel indices
-        left_lane_inds = []
-        right_lane_inds = []
-
-        # Step through the windows one by one
-        for window in range(nwindows):
-            # Identify window boundaries in x and y (and right and left)
-            win_y_low = binary_warped.shape[0] - (window+1)*window_height
-            win_y_high = binary_warped.shape[0] - window*window_height
-            win_xleft_low = leftx_current - margin
-            win_xleft_high = leftx_current + margin
-            win_xright_low = rightx_current - margin
-            win_xright_high = rightx_current + margin
-            # Draw the windows on the visualization image
-            cv2.rectangle(out_img,(win_xleft_low,win_y_low),(win_xleft_high,win_y_high),(0,255,0), 2) 
-            cv2.rectangle(out_img,(win_xright_low,win_y_low),(win_xright_high,win_y_high),(0,255,0), 2) 
-            # Identify the nonzero pixels in x and y within the window
-            good_left_inds = ((nonzeroy >= win_y_low) & (nonzeroy < win_y_high) & (nonzerox >= win_xleft_low) & (nonzerox < win_xleft_high)).nonzero()[0]
-            good_right_inds = ((nonzeroy >= win_y_low) & (nonzeroy < win_y_high) & (nonzerox >= win_xright_low) & (nonzerox < win_xright_high)).nonzero()[0]
-            # Append these indices to the lists
-            left_lane_inds.append(good_left_inds)
-            right_lane_inds.append(good_right_inds)
-            # If you found > minpix pixels, recenter next window on their mean position
-            if len(good_left_inds) > minpix:
-                leftx_current = np.int(np.mean(nonzerox[good_left_inds]))
-            if len(good_right_inds) > minpix:        
-                rightx_current = np.int(np.mean(nonzerox[good_right_inds]))
-            # Change the window margin for all other windows (besides the first)
-            margin = 80
-
-        # Concatenate the arrays of indices
-        left_lane_inds = np.concatenate(left_lane_inds)
-        right_lane_inds = np.concatenate(right_lane_inds)
-
-        # Extract left and right line pixel positions
-        leftx = nonzerox[left_lane_inds]
-        lefty = nonzeroy[left_lane_inds] 
-        rightx = nonzerox[right_lane_inds]
-        righty = nonzeroy[right_lane_inds] 
-
-        # Fit a second order polynomial to each
-        left_fit = np.polyfit(lefty, leftx, 2)
-        right_fit = np.polyfit(righty, rightx, 2)
-
-        # Generate x and y values for plotting
-        ploty = np.linspace(0, binary_warped.shape[0]-1, binary_warped.shape[0] )
-        left_fitx = left_fit[0]*ploty**2 + left_fit[1]*ploty + left_fit[2]
-        right_fitx = right_fit[0]*ploty**2 + right_fit[1]*ploty + right_fit[2]
-
-        # Generate colored lane line image
-        out_img[nonzeroy[left_lane_inds], nonzerox[left_lane_inds]] = [255, 0, 0]
-        out_img[nonzeroy[right_lane_inds], nonzerox[right_lane_inds]] = [0, 0, 255]
-
-        # save polinomial fit from current frame
-        last_frame.left_line.recent_fit = left_fit
-        last_frame.right_line.recent_fit = right_fit
-
-        # Generate colored lane line image
-        out_img[nonzeroy[left_lane_inds], nonzerox[left_lane_inds]] = [255, 0, 0]
-        out_img[nonzeroy[right_lane_inds], nonzerox[right_lane_inds]] = [0, 0, 255]
-
-        # Set back error after first frame was processed
-        tracking_errors.lost_tracking = False
-       
+        # Use sliding window approach
+        left_fitx, right_fitx, ploty, out_img = sliding_window(binary_warped, out_img)
+    # For every other frame 
     else:
-        
-        # Assume you now have a new warped binary image 
-        # from the next frame of video (also called "binary_warped")
-        # It's now much easier to find line pixels!
-        nonzero = binary_warped.nonzero()
-        nonzeroy = np.array(nonzero[0])
-        nonzerox = np.array(nonzero[1])
+        # Use margin-around-last-known-location-approach
+        left_fitx, right_fitx, ploty, out_img = search_with_margin(binary_warped, out_img)
 
-        # load polinomial fit from last frame
-        left_fit = last_frame.left_line.recent_fit
-        right_fit = last_frame.right_line.recent_fit
 
-        # margin for searching around expected location
-        margin = 80
-        # identify new non zero pixels around the expected location 
-        left_lane_inds = ((nonzerox > (left_fit[0]*(nonzeroy**2) + left_fit[1]*nonzeroy + left_fit[2] - margin)) & (nonzerox < (left_fit[0]*(nonzeroy**2) + left_fit[1]*nonzeroy + left_fit[2] + margin))) 
-        right_lane_inds = ((nonzerox > (right_fit[0]*(nonzeroy**2) + right_fit[1]*nonzeroy + right_fit[2] - margin)) & (nonzerox < (right_fit[0]*(nonzeroy**2) + right_fit[1]*nonzeroy + right_fit[2] + margin)))  
-
-        # Again, extract left and right line pixel positions
-        leftx = nonzerox[left_lane_inds]
-        lefty = nonzeroy[left_lane_inds] 
-        rightx = nonzerox[right_lane_inds]
-        righty = nonzeroy[right_lane_inds]
-        # Fit a new second order polynomial to each
-        left_fit = np.polyfit(lefty, leftx, 2)
-        right_fit = np.polyfit(righty, rightx, 2)
-        # save new polinomial fit from current frame
-        last_frame.left_line.recent_fit = left_fit
-        last_frame.right_line.recent_fit = right_fit
-        # Generate x and y values for plotting
-        ploty = np.linspace(0, binary_warped.shape[0]-1, binary_warped.shape[0] )
-        left_fitx = left_fit[0]*ploty**2 + left_fit[1]*ploty + left_fit[2]
-        right_fitx = right_fit[0]*ploty**2 + right_fit[1]*ploty + right_fit[2]
-
-        # Generate colored lane line image
-        out_img[nonzeroy[left_lane_inds], nonzerox[left_lane_inds]] = [255, 0, 0]
-        out_img[nonzeroy[right_lane_inds], nonzerox[right_lane_inds]] = [0, 0, 255]
-    
+    # CALCULATE CURVATURES 
 
     # Calculate radius, direction and points for middle line
     left_curverad_m, middle_curverad_m, right_curverad_m, direction, middle_pts = calculate_middle_line(left_fitx, right_fitx, ploty)
@@ -380,89 +467,22 @@ def process_image(img):
     # Calculate position of the car in respect to the lane lines (calculated middle line)
     car_position = round((img_size[0]/2 - middle_pts[0, len(ploty)-1, 0]) * xm_per_pix, 2)
 
+    # Calculate lane line distance for current frame
+    average_lane_distance = np.mean(right_fitx - left_fitx)
+    
+
     # SANITY CHECKS
-    
-    # detected lanes are too wide or too narrow
-    lane_distance = np.mean(right_fitx - left_fitx)
-    if ((lane_distance > (4.5 / xm_per_pix)) or (lane_distance < (3.5 / xm_per_pix))):
-        tracking_errors.distance = True
 
-    # detected curves are not parallel (compare with average lane line width)
-    # if (tracking_errors.lost_tracking == False):
-    if (tracking_errors.first_frame == False):
-        average_lane_distance = np.mean(last_frame.average_lane_distance, axis=0)
-        lane_dist = average_lane_distance
-        if (((np.max(right_fitx - lane_dist - left_fitx) > (0.5 / xm_per_pix)) or np.min(right_fitx - lane_dist - left_fitx)< (-0.5 / xm_per_pix))):
-            tracking_errors.parallel = True
-            print ("Lines are not parallel.")
-            print (xm_per_pix * np.max(right_fitx - lane_dist - left_fitx))
-        
-    # detected curve changes direction abruptly
-    if (last_frame.recent_direction == "right" and direction == "left" or last_frame.recent_direction == "left" and direction == "right"):
-        tracking_errors.direction  = True
-        
-    # check minimum curvature of lane
-    minimum_curvature = 150 # 150   ~500ft for highway
-    if (middle_curverad_m < minimum_curvature):
-        print("Curve < 150m")
-        tracking_errors.curvature = True
+    # Do not perform sanity checks on first frame
+    if (tracking_errors.first_frame == True):
 
-    # check change of curvature of both lane lines independently
-    change_factor = 3
-    left_line_error = False
-    right_line_error = False
-    
-    #if (tracking_errors.lost_tracking == False and tracking_errors.curvature == False and tracking_errors.direction == False and tracking_errors.parallel == False and tracking_errors.distance == False):
-    if (tracking_errors.first_frame == False and tracking_errors.curvature == False and tracking_errors.direction == False and tracking_errors.parallel == False and tracking_errors.distance == False):
+        # Smoothen the output by averaging right_fitx and left_fitx over a couple frames
+        # First time fill list with copies of the first frame
+        for i in range(0, last_frame.buffer_size):
+            last_frame.average_left_fitx.append(left_fitx)
+            last_frame.average_right_fitx.append(right_fitx)
+            last_frame.average_lane_distance.append(average_lane_distance)
 
-        ### average_lane_distance = np.mean(last_frame.average_lane_distance, axis=0)
-        if (left_curverad_m > change_factor*last_frame.left_line.last_radius_m or left_curverad_m < last_frame.left_line.last_radius_m/change_factor):
-            print("Problem with left curvature")
-            left_line_error = True
-        if (right_curverad_m > change_factor*last_frame.right_line.last_radius_m or right_curverad_m < last_frame.right_line.last_radius_m/change_factor):
-            print("Problem with right curvature")
-            right_line_error = True
-    else:
-        average_lane_distance = np.mean(right_fitx - left_fitx)
-
-    # Correct left or right line with a copy from the other "good" line
-    # If both lines are bad use all data from last frame
-    if (left_line_error == True & right_line_error == True):
-        tracking_errors.curvature = True
-    elif (left_line_error == True):
-        print("Left line corrected")
-        left_fitx = right_fitx - average_lane_distance
-    elif (right_line_error == True):
-        print("Right line corrected")
-        right_fitx = left_fitx + average_lane_distance
-    
-    # Check if at least one sanity checks for both lines has failed
-    if ((tracking_errors.distance == True or tracking_errors.direction == True or tracking_errors.curvature == True or tracking_errors.parallel == True) and tracking_errors.lost_tracking == False):
-        # add error description to error list
-        tracking_errors.add_errors_to_list()
-        # increase error counter by one
-        tracking_errors.counter = tracking_errors.counter + 1
-        # Reset error flags for next frame
-        tracking_errors.distance = False
-        tracking_errors.direction = False
-        tracking_errors.curvature = False
-        tracking_errors.parallel = False
-        
-        # Use values from last frame
-        left_fitx = last_frame.left_line.recent_fitx
-        left_curverad_m = last_frame.left_line.last_radius_m
-        right_fitx = last_frame.right_line.recent_fitx
-        right_curverad_m = last_frame.right_line.last_radius_m
-        direction = last_frame.recent_direction
-        middle_pts = last_frame.recent_middle_pts
-        middle_curverad_m = last_frame.recent_radius
-        print("Use last frame.")
-        
-    else:
-        # Reset error counter and empty error list
-        tracking_errors.counter = 0
-        del tracking_errors.error_list[:]
-        
         # Save validated (and possibly corrected) values to last frame class variables
         last_frame.left_line.recent_fitx = left_fitx
         last_frame.left_line.last_radius_m = left_curverad_m
@@ -471,23 +491,70 @@ def process_image(img):
         last_frame.recent_direction = direction
         last_frame.recent_middle_pts = middle_pts
         last_frame.recent_radius = middle_curverad_m
-    
-    # smoothen the output by averaging right_fitx and left_fitx over a couple frames
-    # first time fill list with copies of the first frame
-    average_lane_distance = np.mean(right_fitx - left_fitx)
-    #if tracking_errors.lost_tracking == True:
-    if tracking_errors.first_frame == True:
-        for i in range(0, last_frame.buffer_size):
-            last_frame.average_left_fitx.append(left_fitx)
-            last_frame.average_right_fitx.append(right_fitx)
-            last_frame.average_lane_distance.append(average_lane_distance)
-        #tracking_errors.lost_tracking = False
+        
+        # Set first frame flag to False
         tracking_errors.first_frame = False
-    # add new values to the buffer and push out the oldest ones 
+
+    # Not the first frame
     else:
-        last_frame.average_left_fitx.append(left_fitx)
-        last_frame.average_right_fitx.append(right_fitx)
+
+        # Only perform sanity checks when tracking was not lost the frame before
+        if (tracking_errors.lost_tracking == True):
+            # Reset tracking error flag for next frame
+            tracking_errors.lost_tracking = False
+        else:
+            # Calculate average distance from last buffered values
+            average_lane_distance = np.mean(last_frame.average_lane_distance, axis=0)
+            # Verify that lane lines have the correct distance, are parallel, and don't change directions abruptly
+            check_lane_lines(left_fitx, right_fitx, direction, average_lane_distance)
+            # Verify that lane lines have a certain curvature and check both lines independently
+            check_line_curvature(left_curverad_m, middle_curverad_m, right_curverad_m, left_fitx, right_fitx)
+   
+    
+            # Check if at least one sanity check for both lines has failed
+            if ((tracking_errors.distance == True or tracking_errors.direction == True or tracking_errors.curvature == True or tracking_errors.parallel == True) and tracking_errors.lost_tracking == False):
+                # add error description to error list
+                tracking_errors.add_errors_to_list()
+                # increase error counter by one
+                tracking_errors.counter = tracking_errors.counter + 1
+                # Reset error flags for next frame
+                tracking_errors.distance = False
+                tracking_errors.direction = False
+                tracking_errors.curvature = False
+                tracking_errors.parallel = False
+                
+                # Load values from last frame into variables
+                left_fitx = last_frame.left_line.recent_fitx
+                left_curverad_m = last_frame.left_line.last_radius_m
+                right_fitx = last_frame.right_line.recent_fitx
+                right_curverad_m = last_frame.right_line.last_radius_m
+                direction = last_frame.recent_direction
+                middle_pts = last_frame.recent_middle_pts
+                middle_curverad_m = last_frame.recent_radius
+                average_lane_distance = last_frame.average_lane_distance[last_frame.buffer_size-1]
+                print("Use last frame.")
+
+            # All results from sanity checks are okay
+            else:
+                # Reset error counter and empty error list
+                tracking_errors.counter = 0
+                del tracking_errors.error_list[:]
+                
+                
+        # Save validated (and possibly corrected) values to last frame class variables
+        last_frame.left_line.recent_fitx = left_fitx
+        last_frame.left_line.last_radius_m = left_curverad_m
+        last_frame.right_line.recent_fitx = right_fitx
+        last_frame.right_line.last_radius_m = right_curverad_m
+        last_frame.recent_direction = direction
+        last_frame.recent_middle_pts = middle_pts
+        last_frame.recent_radius = middle_curverad_m
+
+        # add new values to the buffer and push out the oldest ones 
+        last_frame.average_left_fitx.append(last_frame.left_line.recent_fitx)
+        last_frame.average_right_fitx.append(last_frame.right_line.recent_fitx)
         last_frame.average_lane_distance.append(average_lane_distance)
+
 
     # Calculate the mean over all buffered values and save as new poynomial x values
     left_fitx = np.mean(last_frame.average_left_fitx, axis=0)

@@ -38,7 +38,7 @@ class Last_Frame():
         self.recent_radius = None
         self.recent_direction = "straight"
         self.recent_middle_pts = None
-        self.buffer_size = 8 # 1 = no buffer
+        self.buffer_size = 15 # 1 = no buffer
         self.average_left_fitx = collections.deque([], self.buffer_size)
         self.average_right_fitx = collections.deque([], self.buffer_size)
         self.average_lane_distance = collections.deque([], self.buffer_size)       
@@ -51,11 +51,13 @@ class Last_Frame():
 class Error():
     def __init__(self):
         # Reset tracking mode
-        self.lost_tracking = True # Set to True for the first frame
+        self.lost_tracking = False # Set to True for the first frame
+        # Flag for first frame exception
+        self.first_frame = True # Set to True for the first frame
         # Counter for counting frames with at least one error
-        self.counter = 0
+        self.counter = 0 # Initialize with 0
         # Maximum number of errors allowed before reset
-        self.max_errors = 10
+        self.max_errors = 5
         # Error for not deteting lane lines in the last images
         self.no_lines = False # Set to True for the first frame
         # Error for curvature being out of range
@@ -242,7 +244,7 @@ def process_image(img):
     out_img = np.dstack((binary_warped, binary_warped, binary_warped))*255
 
     # For first frame at the beginning and after line detection was lost (sliding window approach)
-    if (tracking_errors.lost_tracking == True):
+    if (tracking_errors.first_frame == True or tracking_errors.lost_tracking == True):
 
         # Take a histogram of the bottom half of the image
         histogram = np.sum(binary_warped[int(binary_warped.shape[0]/2):,:], axis=0)
@@ -329,8 +331,8 @@ def process_image(img):
         out_img[nonzeroy[left_lane_inds], nonzerox[left_lane_inds]] = [255, 0, 0]
         out_img[nonzeroy[right_lane_inds], nonzerox[right_lane_inds]] = [0, 0, 255]
 
-        # Set back error after first frame (beginning and after loss) was processed
-        #tracking_errors.lost_tracking = False
+        # Set back error after first frame was processed
+        tracking_errors.lost_tracking = False
        
     else:
         
@@ -375,7 +377,8 @@ def process_image(img):
     # Calculate radius, direction and points for middle line
     left_curverad_m, middle_curverad_m, right_curverad_m, direction, middle_pts = calculate_middle_line(left_fitx, right_fitx, ploty)
 
-
+    # Calculate position of the car in respect to the lane lines (calculated middle line)
+    car_position = round((img_size[0]/2 - middle_pts[0, len(ploty)-1, 0]) * xm_per_pix, 2)
 
     # SANITY CHECKS
     
@@ -385,7 +388,8 @@ def process_image(img):
         tracking_errors.distance = True
 
     # detected curves are not parallel (compare with average lane line width)
-    if (tracking_errors.lost_tracking == False):
+    # if (tracking_errors.lost_tracking == False):
+    if (tracking_errors.first_frame == False):
         average_lane_distance = np.mean(last_frame.average_lane_distance, axis=0)
         lane_dist = average_lane_distance
         if (((np.max(right_fitx - lane_dist - left_fitx) > (0.5 / xm_per_pix)) or np.min(right_fitx - lane_dist - left_fitx)< (-0.5 / xm_per_pix))):
@@ -408,7 +412,9 @@ def process_image(img):
     left_line_error = False
     right_line_error = False
     
-    if (tracking_errors.lost_tracking == False and tracking_errors.curvature = False and tracking_errors.direction  = False and tracking_errors.parallel = False and tracking_errors.distance = False):
+    #if (tracking_errors.lost_tracking == False and tracking_errors.curvature == False and tracking_errors.direction == False and tracking_errors.parallel == False and tracking_errors.distance == False):
+    if (tracking_errors.first_frame == False and tracking_errors.curvature == False and tracking_errors.direction == False and tracking_errors.parallel == False and tracking_errors.distance == False):
+
         ### average_lane_distance = np.mean(last_frame.average_lane_distance, axis=0)
         if (left_curverad_m > change_factor*last_frame.left_line.last_radius_m or left_curverad_m < last_frame.left_line.last_radius_m/change_factor):
             print("Problem with left curvature")
@@ -469,12 +475,14 @@ def process_image(img):
     # smoothen the output by averaging right_fitx and left_fitx over a couple frames
     # first time fill list with copies of the first frame
     average_lane_distance = np.mean(right_fitx - left_fitx)
-    if tracking_errors.lost_tracking == True:
+    #if tracking_errors.lost_tracking == True:
+    if tracking_errors.first_frame == True:
         for i in range(0, last_frame.buffer_size):
             last_frame.average_left_fitx.append(left_fitx)
             last_frame.average_right_fitx.append(right_fitx)
             last_frame.average_lane_distance.append(average_lane_distance)
-        tracking_errors.lost_tracking = False
+        #tracking_errors.lost_tracking = False
+        tracking_errors.first_frame = False
     # add new values to the buffer and push out the oldest ones 
     else:
         last_frame.average_left_fitx.append(left_fitx)
@@ -492,7 +500,7 @@ def process_image(img):
     if (tracking_errors.counter >= tracking_errors.max_errors):
         # print the description of the occured errors
         print (tracking_errors.error_list)
-        # Disregard smoothening buffer content, start again with next frame from scratch
+        # Start with the sliding window approach
         tracking_errors.lost_tracking = True
         # reset error counter and empty error list
         tracking_errors.counter = 0
@@ -528,10 +536,15 @@ def process_image(img):
     result = cv2.addWeighted(orig_img, 1, newwarp, 0.8, 0)
 
     # Add text with error info to the image 
-    cv2.putText(result, str(tracking_errors.counter) + ' errors', (50, 350), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
+    cv2.putText(result, str(tracking_errors.counter) + ' errors', (50, 400), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
+
+    # Add text with car position to the image 
+    cv2.putText(result, 'Position: ' + str(car_position) + ' m', (50, 450), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
     
     # Add text with direction and radius info to the image 
-    cv2.putText(result, direction + ', radius = ' + str(round(middle_curverad_m, 1)) + '(m)', (50, 450), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
+    cv2.putText(result, direction + ', radius = ' + str(round(middle_curverad_m, 1)) + '(m)', (50, 500), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
+
+    
 
     # create image in image video for tuning / debugging
     gradx[(gradx == 1)] = 255
@@ -610,7 +623,7 @@ def process_image(img):
 Input_video = 'project_video.mp4'
 #Input_video = 'challenge_video.mp4'
 
-Output_video = 'output_test.mp4'
+Output_video = 'output_video_highway.mp4'
 
 last_frame = Last_Frame()
 tracking_errors = Error()

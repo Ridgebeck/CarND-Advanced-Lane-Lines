@@ -53,7 +53,7 @@ The project covered the following content:
 [image15]: ./writeup_data/marker.jpg "Drawn Lines Image"
 [image16]: ./writeup_data/result.jpg "Output"
 
-[video1]: ./project_video.mp4 "Video"  
+[video1]: ./output_video_highway.mp4 "Video"  
 
 ---
 
@@ -132,6 +132,7 @@ In order to find the lane lines I used the sliding window approach. I took a his
 Sliding window approach to detect lane lines:
 ![alt text][image14]
 
+After the lane line pixels were found in a frame with the sliding window approach, I used the location of the identified pixels from the last frame and searched around the location with a margin in x direction, that I set to 80 pixels.
 
 ## 5. Reading Lane Line Information
 
@@ -153,7 +154,7 @@ All pictures from the different stages were saved in the output image folder (/o
 
 ## 7. Video Pipeline
 
-For the video pipeline I used a new file called `video_gen.py`. The video was opened and the single images processed by using the functions `VideoFileClip()` and `fl_image()` from the `moviepy.editor` library. Additionally a class for storing the values from the last frame (`Last_Frame()`) was created that also contained a class `Line()` for the values for the left and right lane line parameters. ANother class called `Error()` was created in order to store error information. In addition to the sliding window approach I used the approach to search around the last frame's lane line position. The margin for this search window in x direction was set to 80 pixels after a couple trials. This gave good results to find enough lane line pixels without including to much noise around the lane lines. You can find the code strating in line 335 in `video_gen.py`.
+For the video pipeline I used a new file called `video_gen.py`. The video was opened and the single images processed by using the functions `VideoFileClip()` and `fl_image()` from the `moviepy.editor` library. Additionally a class for storing the values from the last frame (`Last_Frame()`) was created that also contained a class `Line()` for the values for the left and right lane line parameters. ANother class called `Error()` was created in order to store error information. In addition to the sliding window approach I used the approach to search around the last frame's lane line position. The margin for this search window in x direction was set to 80 pixels after a couple trials. This gave good results to find enough lane line pixels without including to much noise around the lane lines. You can find the code starting in line 335 in `video_gen.py`.
 
 In order to avoid any misinterpretation and wrong curvature calculations I added some sanity checks that were applied to each image. The following was verified for each image:
 * It was checked if the lane lines are in a certain distance or if they are to close together or too far apart.
@@ -162,10 +163,13 @@ In order to avoid any misinterpretation and wrong curvature calculations I added
 * It was verified that the curvature was over a certain minimum radius (150m for the highway test video).
 * Both lane lines were checked individually if they changed there curvature value abruptly from one frame to the other. If the change was higher than `change_factor` (set to 3) a specific error flag for this specific line was set. If the other line was considered to be "good" based on all other sanity checks the "bad" line was replaced with a copy of the "good" line in average distance (left or right) to the "good" line. No error flag was set in this situation.
 
-If at least one sanity check failed the error counter `tracking_errors.counter` was increased by one, the error mode was added to a error list (`tracking_errors.add_errors_to_list()`), the values of the old frame were used, and all errors flags were reset to "False". If no error occured the error counter was reset to 0, the error list was emptied and all current values were saved in the variables for the parameters of the last frame. After that the output was smoothened to reduce the effect of "jumping lines" by using a FIFO buffer with a `collections.deque()` container. The buffer size was defined in the variable `last_frame.buffer_size` and was set to 8. This provided a good smoothening effect while still being able to adapt quickly to curvature changes. The image was visualized the same way as before, but now based on the smoothened results.
+If at least one sanity check failed the error counter `tracking_errors.counter` was increased by one, the error mode was added to a error list (`tracking_errors.add_errors_to_list()`), the values of the old frame were used, and all errors flags were reset to "False". If no error occured the error counter was reset to 0, the error list was emptied and all current values were saved in the variables for the parameters of the last frame. If there occured more errors in a row than allowed (value of `tracking_errors.counter` reached the value defined in `tracking_errors.max_errors`) the tracking method was reset to the sliding window approach.
 
-All different steps were again saved in images and this time added as smaller images/videos that were overlayed with the final result. This was very important for tuning, trouble shooting and understanding of the influences of the differnent parameters. The result is the video `output_video_highway.mp4`.
+The verified (or corrected) output was smoothened to reduce the effect of "jumping lines" by using a FIFO buffer with a `collections.deque()` container. The buffer size was defined in the variable `last_frame.buffer_size` and was set to 15. This provided a good smoothening effect while still being able to adapt reasonably quickly to curvature changes. This could be adjusted depending on the circumstances (e.g. highway vs. city streets). The image was visualized the same way as before, but now based on the smoothened results.
 
+All different steps were again saved in images and this time added as smaller images/videos that were overlayed with the final result. This was very important for tuning, trouble shooting and understanding of the influences of the different parameters. The result is the video `output_video_highway.mp4`.
+
+![alt text][video1]
 
 ## 8. Outlook
 

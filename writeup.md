@@ -169,7 +169,7 @@ The verified (or corrected) output was smoothened to reduce the effect of "jumpi
 
 All different steps were again saved in images and this time added as smaller images/videos that were overlayed with the final result. This was very important for tuning, trouble shooting and understanding of the influences of the different parameters. The result is the video `output_video_highway.mp4`.
 
-![alt text][video1]
+!["Processed Video"][video1]
 
 ## 8. Outlook
 
